@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-
+from tkinter import simpledialog
+from assistant.utils.credentials import get_api_key, set_api_key
 from assistant.config import get_settings
 from assistant.openai_client import OpenAIClient
 from assistant.models import ExplainRequest, QuizRequest
@@ -12,22 +13,53 @@ from assistant.utils.errors import ConfigError, AssistantError
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
+
+        self.withdraw()  # Hide window until key setup complete
         self.title("Study Assistant")
         self.geometry("950x650")
 
-        # --- Load settings / init client ---
         settings = get_settings()
-        if not settings.api_key:
-            raise ConfigError(
-                "Missing OPENAI_API_KEY. Create a .env file in the project root with your key."
-            )
 
-        client = OpenAIClient(api_key=settings.api_key, model=settings.model)
+        # 1) Try env first
+        api_key = (settings.api_key or "").strip()
+
+        # 2) Try OS keyring
+        if not api_key:
+            api_key = (get_api_key() or "").strip()
+
+        # 3) Prompt if missing
+        if not api_key:
+            api_key = simpledialog.askstring(
+                "OpenAI API Key Required",
+                "Enter your OpenAI API key.\n\n"
+                "It will be securely stored on this computer.",
+                show="*",
+            ) or ""
+
+            api_key = api_key.strip()
+
+            if not api_key:
+                messagebox.showerror(
+                    "API Key Required",
+                    "An OpenAI API key is required to use this application."
+                )
+                self.destroy()
+                return
+
+            set_api_key(api_key)
+
+        # Initialize client + services
+        client = OpenAIClient(api_key=api_key, model=settings.model)
         self.explain_service = ExplainService(client)
         self.quiz_service = QuizService(client)
 
-        # --- Layout ---
         self._build_ui()
+
+        self._build_menu()
+
+
+        self.deiconify()  # Show window after setup
+
 
     def _build_ui(self):
         # Top input panel
@@ -111,6 +143,37 @@ class App(tk.Tk):
             messagebox.showerror("Invalid input", "Questions must be a number.")
         except AssistantError as e:
             messagebox.showerror("Error", str(e))
+
+
+    def _build_menu(self):
+        menubar = tk.Menu(self)
+
+        settings_menu = tk.Menu(menubar, tearoff=0)
+        settings_menu.add_command(label="Change API Key", command=self._change_api_key)
+        settings_menu.add_command(label="Clear API Key", command=self._clear_api_key)
+        menubar.add_cascade(label="Settings", menu=settings_menu)
+
+        self.config(menu=menubar)
+
+    def _change_api_key(self):
+        from assistant.utils.credentials import set_api_key
+        from tkinter import simpledialog
+
+        new_key = simpledialog.askstring(
+            "Change API Key",
+            "Enter new OpenAI API key:",
+            show="*",
+        )
+
+        if new_key:
+            set_api_key(new_key.strip())
+            messagebox.showinfo("Success", "API key updated.")
+
+    def _clear_api_key(self):
+        from assistant.utils.credentials import clear_api_key
+        clear_api_key()
+        messagebox.showinfo("Cleared", "API key removed. Restart app to re-enter.")
+
 
 
 if __name__ == "__main__":

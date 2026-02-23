@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+*.spec
 
 # Virtual environment
 .venv/
@@ -19,3 +20,22 @@ env/
 
 # macOS
 .DS_Store
+
+# Logs
+*.log
+
+# Coverage / testing
+.coverage
+htmlcov/
+
+# Mypy / type checking
+.mypy_cache/
+
+# Pytest
+.pytest_cache/
+
+# Ruff / linters
+.ruff_cache/
+
+# Distribution metadata
+*.egg
